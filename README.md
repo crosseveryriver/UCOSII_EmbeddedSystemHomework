@@ -1,13 +1,13 @@
 # UCOSII_EmbeddedSystemHomework
 The laboratory homeworks of Embedded System Introduction of Software Institute, NJU, 2014 Winter. (C0898)
 
-I have complete all the 3 laboratory homeworks based on UCOSII, one of which is compulsory and the others could gain bonus. You can view and fork them by checkout the different branch of this repository.
+I have completed all the 3 laboratory homeworks based on UCOSII, one of which was compulsory and with others could gain bonus. You can view and fork them by checkout the different branchs of this repository.
 
 The branchs are:
 
-* master: the initilization.[only the source code provided by the Prof.]
+* master: the initilization.[only the source code provided by Prof. Haitao Liu]
 * basic: the basic requirement to adopt EDF Schedule
-* improve: improve EDF Schedult by replace linear search with Priority Queue
+* improve: improve EDF Schedult by replacing linear search with Priority Queue
 * mmng: improve the memory management of UCOSII using the method in [1]
 
 
