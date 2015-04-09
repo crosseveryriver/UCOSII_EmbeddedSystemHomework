@@ -460,3 +460,251 @@ void  OS_MemInit (void)
 #endif
 }
 #endif                                                    /* OS_MEM_EN                                 */
+
+
+/*------------------------------------------------------------------*/
+INT32U two_exp(INT8U num){
+	int exps[]={1,2,4,8,16,32,64,128,256,512,1024};
+	if(num>10){
+		return exps[10];
+	}else{
+		return exps[num];
+	}
+}
+
+void display_memory(){
+	INT16U i;
+	INT16U j;
+	OS_MEM_NEW* pmem;
+	void* pblk;
+	APP_TRACE("**********display_memory*********\n");
+	for(i=0;i<OS_MAX_MEM_PART;i++){
+		pmem=(OSMemTblNew+i);	
+		APP_TRACE("blksum:%d,blksize:%d,freelist:%d,tail:%d\n",pmem->OSMemNBlks,pmem->OSMemBlkSize,pmem->OSMemFreeList,pmem->OSMemBlkTail);
+		pblk=pmem->OSMemFreeList;
+		j=0;
+		while(pblk!=pmem->OSMemBlkTail&&j<pmem->OSMemNBlks){
+			APP_TRACE("%d\n",pblk);
+			pblk=*(void**)pblk;
+			j++;
+		}
+	}
+	APP_TRACE("*********************************\n");
+}
+
+
+void OSMemCreateNew(void* addr, INT32U nblks, INT32U granularity,INT8U *err ){
+	INT8U i;
+	INT8U j;
+	INT32U mem_addition=0;
+	OS_MEM_NEW *pmem;
+	INT8U *pblk;
+	void **plink;
+
+	plink=(void**)addr;
+	pblk=(INT8U*)addr+granularity*two_exp(0);
+
+	for(i=0;i<OS_MAX_MEM_PART;i++){
+		mem_addition+=two_exp(i)*granularity;
+	}
+
+	for(j=0;j<(nblks-1);j++){
+		for(i=0;i<OS_MAX_MEM_PART;i++){
+			pmem=(OSMemTblNew+i);
+			if(j==0){
+				pmem->OSMemBlkSize=granularity*two_exp(i); //the unit is B
+				pmem->OSMemNBlks=nblks;
+				pmem->OSMemFreeList=(void*)plink;
+				//pmem->OSMemBlkTail=(void*)plink;
+			}
+			*plink=(void*)((INT8U*)plink+mem_addition);
+			plink=(void**)pblk;
+			pblk=pblk+two_exp((i+1)%OS_MAX_MEM_PART)*granularity;
+		}
+	}
+	for(i=0;i<OS_MAX_MEM_PART;i++){
+		APP_TRACE("index:%d tail:%d\n",i,(void*)plink);
+		*plink=(void*)0;
+		pmem=(OSMemTblNew+i);
+		pmem->OSMemBlkTail=(void*)plink;
+		plink=(void**)((INT8U*)plink+two_exp((i)%OS_MAX_MEM_PART)*granularity);
+	}
+	display_memory();
+}
+
+INT8U two_log(INT32U num){
+	INT16U i;
+	int exps[]={1,2,4,8,16,32,64,128,256,512,1024};
+	int logs[]={0,1,2,3,4,5,6,7,8,9,10};
+	if(num>1024){
+		return 10;
+	}else{
+		if(num==1){
+			return 0;
+		}
+		for(i=1;i<11;i++){
+			if(num>exps[i-1]&&num<=exps[i]){
+				return logs[i];
+			}
+		}
+	}
+	return 10;
+}
+
+void* OSMemGetNew(INT32U size, INT32U granularity, INT8U *err){
+	INT8U *blk;
+	INT8U index;
+	INT16U i;
+	OS_MEM_NEW *pmem;
+	void* pblk;
+
+	index=two_log(size);
+	pmem=(OSMemTblNew+index);
+	
+	OS_ENTER_CRITICAL();
+	if(pmem->OSMemNBlks>0){
+		pmem->OSMemNBlks--;
+		pblk=pmem->OSMemFreeList;
+		pmem->OSMemFreeList=*(void**)pblk;
+		if(pmem->OSMemNBlks==0){
+			pmem->OSMemBlkTail=*(void**)pblk;
+		}
+		OS_EXIT_CRITICAL();
+		APP_TRACE("In OSMemGetNew: size: %d\n",pmem->OSMemBlkSize);
+		display_memory();
+		return (pblk);
+	}else{
+		for(i=index+1;i<OS_MAX_MEM_PART;i++){
+			pmem=(OSMemTblNew+i);
+			APP_TRACE("need bigger index:%d, pmem blksize:%d, remain_blk_sum:%d\n",i,pmem->OSMemBlkSize,pmem->OSMemNBlks);
+			if(pmem->OSMemNBlks>0){
+				pmem->OSMemNBlks--;
+				pblk=pmem->OSMemFreeList;
+				pmem->OSMemFreeList=*(void**)pblk;
+				APP_TRACE("In OSMemGetNew and for bigger: size: %d\n",pmem->OSMemBlkSize);
+				pmem=(OSMemTblNew+i-1);
+				blk=(INT8U*)pblk+pmem->OSMemBlkSize;
+				pmem->OSMemBlkTail=(void*)blk;
+				if(pmem->OSMemNBlks==0){
+					pmem->OSMemFreeList=pmem->OSMemBlkTail;
+				}else{
+					*(void**)(pmem->OSMemBlkTail)=(void*)blk;
+				}
+				pmem->OSMemNBlks++;
+				OS_EXIT_CRITICAL();
+				display_memory();
+				return (pblk);
+			}
+		}
+
+	}
+	OS_EXIT_CRITICAL();
+	*err=OS_ERR_MEM_NO_FREE_BLKS;
+	return ((void*)0);	
+}
+INT8U OSMemPutNew(INT32U size, INT32U granularity,void *pblk0){
+	INT8U index;
+	INT8U has_merge;
+	INT16U i;
+	INT16U j;
+	OS_MEM_NEW *pmem;
+	void *pblk;
+	void *p_preblk;
+
+	index=two_log(size);	
+	OS_ENTER_CRITICAL();
+	for(i=index;i<OS_MAX_MEM_PART-1;i++){
+		pmem=(OSMemTblNew+i);
+		pblk=pmem->OSMemFreeList;
+		p_preblk=pmem->OSMemFreeList;
+		j=0;
+		has_merge=0;
+		APP_TRACE("pmem->OSMemBlkTail:%d,blksize:%d,OSMemBlkFree:%d\n",pmem->OSMemBlkTail,pmem->OSMemBlkSize,pmem->OSMemFreeList);
+		while(1){
+			APP_TRACE("pblk:%d\n",pblk);
+			if(pblk0==((void*)((INT8U*)pblk+pmem->OSMemBlkSize))){
+				has_merge=1;
+				//APP_TRACE("in put memory: operation merge block\n");
+				pmem->OSMemNBlks--;
+				if(pmem->OSMemNBlks==0){
+					pmem->OSMemBlkTail=(void*)0;
+					pmem->OSMemFreeList=(void*)0;
+				}else{
+					if(pmem->OSMemNBlks==1){
+						if(pmem->OSMemFreeList==pblk){
+							pmem->OSMemFreeList=pmem->OSMemBlkTail;
+							*(void**)pmem->OSMemFreeList=(void*)0;
+						}else{
+							pmem->OSMemBlkTail=pmem->OSMemFreeList;
+							*(void**)pmem->OSMemFreeList=(void*)0;
+						}
+					}else{
+						*(void**)p_preblk=*(void**)pblk;
+					}
+				}
+			/**	pmem=(OSMemTblNew+i+1);
+				*(void**)pblk=pmem->OSMemFreeList;
+				pmem->OSMemFreeList=pblk;
+				if(pmem->OSMemNBlks==0){
+					pmem->OSMemBlkTail=pmem->OSMemFreeList;
+				}
+				pmem->OSMemNBlks++;**/
+				pblk0=pblk;
+				break;
+			}
+			if(pblk0==((void*)((INT8U*)pblk-pmem->OSMemBlkSize))){
+				has_merge=1;
+				pmem->OSMemNBlks--;
+				if(pmem->OSMemNBlks==0){
+					pmem->OSMemBlkTail=(void*)0;
+					pmem->OSMemFreeList=(void*)0;
+				}else{
+					if(pmem->OSMemNBlks==1){
+						if(pmem->OSMemFreeList==pblk){
+							pmem->OSMemFreeList=pmem->OSMemBlkTail;
+							*(void**)pmem->OSMemFreeList=(void*)0;
+						}else{
+							pmem->OSMemBlkTail=pmem->OSMemFreeList;
+							*(void**)pmem->OSMemFreeList=(void*)0;
+						}
+					}else{
+						*(void**)p_preblk=*(void**)pblk;
+					}
+				}
+				//pmem=(OSMemTblNew+i+1);
+				//*(void**)pblk0=pmem->OSMemFreeList;
+				//pmem->OSMemFreeList=pblk0;
+				break;
+			}
+			if(pblk==pmem->OSMemBlkTail){
+				break;
+			}
+			j++;
+			p_preblk=pblk;
+			pblk=*(void**)pblk;
+		}
+		//APP_TRACE("in put memory: %d\n",pblk);
+		//display_memory();
+		if(!has_merge){
+			*(void**)pblk0=pmem->OSMemFreeList;
+			pmem->OSMemFreeList=pblk0;
+			if(pmem->OSMemNBlks==0){
+				pmem->OSMemBlkTail=pmem->OSMemFreeList;
+			}
+			pmem->OSMemNBlks++;
+			break;
+		}
+	}
+	OS_EXIT_CRITICAL();
+	APP_TRACE("return from put\n");
+	display_memory();
+	return 0;
+}
+/*------------------------------------------------------------------*/
+
+void OS_MemInitNew(void){
+	//OS_MEM_NEW *pmem;
+	//INT16U i;
+
+}
+

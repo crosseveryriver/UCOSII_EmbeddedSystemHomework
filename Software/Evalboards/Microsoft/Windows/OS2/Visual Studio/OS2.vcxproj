@@ -87,7 +87,6 @@
     <ClCompile Include="..\..\BSP\CPU\cpu_bsp.c" />
     <ClCompile Include="..\app.c" />
     <ClCompile Include="..\app_hooks.c" />
-    <ClCompile Include="minheap.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\..\uC-CPU\cpu_cache.h" />

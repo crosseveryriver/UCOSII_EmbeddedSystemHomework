@@ -386,7 +386,6 @@ typedef struct os_event {
 } OS_EVENT;
 #endif
 
-
 /*
 *********************************************************************************************************
 *                                      EVENT FLAGS CONTROL BLOCK
@@ -465,6 +464,16 @@ typedef struct os_mem {                     /* MEMORY CONTROL BLOCK             
     INT8U  *OSMemName;                      /* Memory partition name                                   */
 #endif
 } OS_MEM;
+
+
+/*--------------------------------------------------------------------------------------------------*/
+typedef struct os_mem_new{
+	void *OSMemFreeList;
+	INT32U OSMemBlkSize;
+	INT32U OSMemNBlks;
+	void *OSMemBlkTail;	//pointer to the tail of blocks' list
+}OS_MEM_NEW;
+/*--------------------------------------------------------------------------------------------------*/
 
 
 typedef struct os_mem_data {
@@ -547,42 +556,6 @@ typedef struct os_stk_data {
     INT32U  OSUsed;                         /* Number of entries used on the stack                     */
 } OS_STK_DATA;
 #endif
-
-
-/*------------------------------------------------------------------------------------------------------
-						appendix data to os_tcb to implement edf scheduling
---------------------------------------------------------------------------------------------------------
-*/
-typedef struct edf_data{
-	INT32U c_value;		// the task needs to consume c_value ticks in p_value ticks as a period
-	INT32U p_value;
-	INT32U comp_time;	// the task remain to comsume in a period
-	INT32U ddl;			// the deadline of a task
-	INT32U start;
-	INT32U end;
-}EDF_DATA;
-
-typedef struct heap_data{
-	INT32U prio;
-	INT32U deadline;
-}Heap_Data;
-
-typedef struct myheap{
-	INT32U capacity;
-	INT32U size;
-	Heap_Data *elements;
-}MinHeap;
-
-MinHeap* heapInitialize();
-void clearHeap(MinHeap* heap);
-void heapInsert(Heap_Data* data,MinHeap* heap);
-Heap_Data* heapDeleteMin(MinHeap* heap);
-void printHeap(MinHeap* heap);
-INT8U isFull(MinHeap* heap);
-INT8U isEmpty(MinHeap* heap);
-
-Heap_Data sentinel;
-MinHeap* taskHeap;
 
 /*$PAGE*/
 /*
@@ -778,6 +751,7 @@ OS_EXT  INT8U             OSTickStepState;          /* Indicates the state of th
 #if (OS_MEM_EN > 0u) && (OS_MAX_MEM_PART > 0u)
 OS_EXT  OS_MEM           *OSMemFreeList;            /* Pointer to free list of memory partitions       */
 OS_EXT  OS_MEM            OSMemTbl[OS_MAX_MEM_PART];/* Storage for memory partition manager            */
+OS_EXT  OS_MEM_NEW	OSMemTblNew[OS_MAX_MEM_PART];
 #endif
 
 #if (OS_Q_EN > 0u) && (OS_MAX_QS > 0u)
@@ -1007,6 +981,11 @@ void          OSMemNameSet            (OS_MEM          *pmem,
 #endif
 INT8U         OSMemPut                (OS_MEM          *pmem,
                                        void            *pblk);
+/*------------------------------------------------------------------*/
+void OSMemCreateNew(void* addr, INT32U nblks, INT32U granularity,INT8U *err );
+void* OSMemGetNew(INT32U size, INT32U granularity, INT8U *err);
+INT8U OSMemPutNew(INT32U size, INT32U granularity,void *pblk);
+/*------------------------------------------------------------------*/
 
 #if OS_MEM_QUERY_EN > 0u
 INT8U         OSMemQuery              (OS_MEM          *pmem,
@@ -1370,6 +1349,7 @@ void          OS_MemCopy              (INT8U           *pdest,
 
 #if (OS_MEM_EN > 0u) && (OS_MAX_MEM_PART > 0u)
 void          OS_MemInit              (void);
+void          OS_MemInitNew			  (void);
 #endif
 
 #if OS_Q_EN > 0u

@@ -38,28 +38,7 @@
 */
 
 #include <includes.h>
-
-
-/*-----------------------------------------------------------------------------------------------------
-                                      my definitions
--------------------------------------------------------------------------------------------------------									  
-*/
-
-#define          TASK_STK_SIZE     512
-
-/*---   priorities ---*/
-#define TASK_1_PRIO		21
-#define TASK_2_PRIO		22
-#define TASK_3_PRIO		23
-#define TASK_4_PRIO		24
-#define TASK_5_PRIO		25
-
-/*---   task IDs ---*/
-#define TASK_1_ID		1
-#define TASK_2_ID		2
-#define TASK_3_ID		3
-#define TASK_4_ID		4
-#define TASK_5_ID		5
+#define TASK_STK_SIZE 512
 
 /*
 *********************************************************************************************************
@@ -75,29 +54,6 @@
 
 static  CPU_STK  AppTaskStartStk[APP_TASK_START_STK_SIZE];
 
-/*------------------------------------------------------------------------------------------------------
-										my variables
---------------------------------------------------------------------------------------------------------
-*/
-
-/*---   stacks ---*/
-OS_STK TASK1STK[TASK_STK_SIZE];
-OS_STK TASK2STK[TASK_STK_SIZE];
-OS_STK TASK3STK[TASK_STK_SIZE];
-OS_STK TASK4STK[TASK_STK_SIZE];
-OS_STK TASK5STK[TASK_STK_SIZE];
-
-/*---   edf_datas ---*/
-// EDF_DATA{c_value,p_value,comp_time,ddl]
-EDF_DATA edf_datas[]=
-{
-	{1,3,1,4,1,1},
-	{3,5,3,6,1,1},
-	{1,4,1,4,1,1},
-	{2,5,2,5,1,1},
-	{2,10,2,10,1,1},
-};
-
 
 /*
 *********************************************************************************************************
@@ -106,17 +62,10 @@ EDF_DATA edf_datas[]=
 */
 
 static  void  AppTaskStart(void  *p_arg);
-
-/*------------------------------------------------------------------------------------------------------
-										my function prototypes
---------------------------------------------------------------------------------------------------------
-*/
+OS_MEM *mmbuf;
+INT8U mempart[496*5];
+OS_STK TaskStack1[TASK_STK_SIZE];
 static void task1(void* pdata);
-static void task2(void* pdata);
-static void task3(void* pdata);
-static void task4(void* pdata);
-static void task5(void* pdata);
-
 
 /*
 *********************************************************************************************************
@@ -131,38 +80,32 @@ static void task5(void* pdata);
 *********************************************************************************************************
 */
 
+
+
 int  main (void)
 {
+	INT8U err;
     OSInit();                                                   /* Init uC/OS-II.                                       */
-
-//  OSTaskCreateExt((void(*)(void *))AppTaskStart,                                            */
-//        (void          *) 0,
-//        (OS_STK        *)&AppTaskStartStk[APP_TASK_START_STK_SIZE - 1],
-/**        (INT8U          ) APP_TASK_START_PRIO,
-       (INT16U         ) APP_TASK_START_PRIO,
+	
+	OSMemCreateNew(mempart,5,16,&err);
+		OSTaskCreateExt((void(*)(void *))AppTaskStart,              /* Create the start task                                */
+        (void          *) 0,
+        (OS_STK        *)&AppTaskStartStk[APP_TASK_START_STK_SIZE - 1],
+        (INT8U          ) APP_TASK_START_PRIO,
+        (INT16U         ) APP_TASK_START_PRIO,
         (OS_STK        *)&AppTaskStartStk[0],
         (INT32U         ) APP_TASK_START_STK_SIZE,
         (void          *) 0,
         (INT16U         )(OS_TASK_OPT_STK_CHK | OS_TASK_OPT_STK_CLR));
-		**/
-	OSTaskCreateExt((void(*)(void *))task1,
-        (void          *) 0,
-		(OS_STK		   *)&TASK1STK[TASK_STK_SIZE-1],
-		(INT8U          ) TASK_1_PRIO,
-		(INT16U         ) TASK_1_ID,
-        (OS_STK        *)&TASK1STK[0],
-		(INT32U         ) TASK_STK_SIZE,
-		(void          *)&edf_datas[0],
-        (INT16U         )0);
 
-	OSTaskCreateExt((void(*)(void *))task2,
+		OSTaskCreateExt((void(*)(void *))task1,
         (void          *) 0,
-		(OS_STK		   *)&TASK2STK[TASK_STK_SIZE-1],
-		(INT8U          ) TASK_2_PRIO,
-		(INT16U         ) TASK_2_ID,
-        (OS_STK        *)&TASK2STK[0],
+		(OS_STK		   *)&TaskStack1[TASK_STK_SIZE-1],
+		(INT8U          ) 4,
+		(INT16U         ) 4,
+		(OS_STK        *)&TaskStack1[0],
 		(INT32U         ) TASK_STK_SIZE,
-		(void          *)&edf_datas[1],
+		(void          *)0,
         (INT16U         )0);
 
     OSStart();                                                  /* Start multitasking (i.e. give control to uC/OS-II).  */
@@ -198,142 +141,34 @@ static  void  AppTaskStart (void *p_arg)
 #if OS_CFG_STAT_TASK_EN > 0u
     OSStatTaskCPUUsageInit(&err);                               /* Compute CPU capacity with no task running            */
 #endif
+
     APP_TRACE_DBG(("uCOS-II is Running...\n\r"));
 
     while (DEF_ON) {                                            /* Task body, always written as an infinite loop.       */
-        //OSTimeDlyHMSM(0, 0, 1, 0);
-		OSTimeDly(3);
+        OSTimeDlyHMSM(0, 0, 1, 0);
 
-		APP_TRACE_DBG(("\n\r#Time: %d", OSTimeGet(&err)));
+        APP_TRACE_DBG(("Time: %d\n\r", OSTimeGet(&err)));
     }
 }
-
-static void task1(void *pdata){
-	INT32U start;
-	INT32U end;
-	INT32U to_delay;
-	//BSP_Init();
-	//CPU_Init();
+static void task1(void* pdata){
+	void* memblk1;
+	void* memblk2;
+	void* memblk3;
+	void* memblk4;
+	void* memblk5;
+	void* memblk6;
+	INT8U err;
 	OSTimeDly(1);
-	start=0;
-	for(;;){
-		while(((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time>0){
-			//do nothing
-		}
-		OS_ENTER_CRITICAL();
-		APP_TRACE("\n @@@@@@@@@ in task1");
-		//end=OSTimeGet();
-		//to_delay=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value-(end-start);
-		//start=start+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		//((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->c_value;
-		//((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		OS_EXIT_CRITICAL();
-		//OSTimeDly(to_delay);
-		
-
-	}
+	APP_TRACE("test memory\n");
+	memblk1=OSMemGetNew(3,16,&err);
+	memblk2=OSMemGetNew(3,16,&err);
+	memblk3=OSMemGetNew(3,16,&err);
+	memblk4=OSMemGetNew(3,16,&err);
+	memblk5=OSMemGetNew(3,16,&err);
+	memblk6=OSMemGetNew(3,16,&err);
+	APP_TRACE("get memmory\n");
+	/*这里有两种测试方法，先还1或者先还6*/
+	OSMemPutNew(3,16,memblk6);
+	OSMemPutNew(3,16,memblk1);
+	APP_TRACE("put memmory\n");
 }
-
-static void task2(void* pdata){
-	INT32U start;
-	INT32U end;
-	INT32U to_delay;
-	//BSP_Init();
-	//CPU_Init();
-	start=0;
-	OSTimeDly(1);
-	for(;;){
-		while(((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time>0){
-			//do nothing
-		}
-		OS_ENTER_CRITICAL();
-		APP_TRACE("\n @@@@@@@@ in task2");
-		//end=OSTimeGet();
-		//to_delay=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value-(end-start);
-		//start=start+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		//((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->c_value;
-		//((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		OS_EXIT_CRITICAL();
-		//OSTimeDly(to_delay);
-
-	}
-}
-
-static void task3(void* pdata){
-	INT32U start;
-	INT32U end;
-	INT32U to_delay;
-	BSP_Init();
-	CPU_Init();
-	start=0;
-	OSTimeDly(1);
-	for(;;){
-		while(((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time>0){
-			//do nothing
-		}
-		APP_TRACE("\nIn task2");
-		end=OSTimeGet();
-		to_delay=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value-(end-start);
-		start=start+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->c_value;
-		((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		OSTimeDly(to_delay);
-
-	}
-}
-
-static void task4(void* pdata){
-	INT32U start;
-	INT32U end;
-	INT32U to_delay;
-	//BSP_Init();
-	//CPU_Init();
-	start=0;
-	OSTimeDly(1);
-	for(;;){
-		while(((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time>0){
-			//do nothing
-		}
-		end=OSTimeGet();
-		to_delay=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value-(end-start);
-		start=start+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->c_value;
-		((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		OSTimeDly(to_delay);
-
-	}
-}
-
-static void task5(void* pdata){
-	INT32U start;
-	INT32U end;
-	INT32U to_delay;
-	//BSP_Init();
-	//CPU_Init();
-	start=0;
-	OSTimeDly(1);
-	for(;;){
-		while(((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time>0){
-			//do nothing
-		}
-		end=OSTimeGet();
-		to_delay=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value-(end-start);
-		start=start+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->comp_time=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->c_value;
-		((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
-		OSTimeDly(to_delay);
-
-	}
-}
-
-/*------------------------------------------------------------------------------------------------------
-							 Things should pay attention in this ported version
---------------------------------------------------------------------------------------------------------
-1. OS_MAX_TASKS defined in os_cfg.h is 20u
-2. OS_Init can create 3 tasks at most, they are:
-	a). OS_InitTaskIdle();	compulsory-->priority=63;
-	b). OS_InitTaskStat();  if OS_TASK_STAT_EN==1(OS_TASK_STAT_EN is defined in os_cfg.h);-->priority=62
-	c). OSTmr_Init(); if OS_TMR_EN==1; (OS_TMR_EN is defined in os_cfg.h)-->priority=61;
-3. the clock rate is controller by a constant called OS_TICKS_PER_SEC in os_cfg.h and I set it to 1 tick per second
---------------------------------------------------------------------------------------------------------
-*/

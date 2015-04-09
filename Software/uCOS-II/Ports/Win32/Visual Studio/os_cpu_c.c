@@ -173,8 +173,7 @@ static  int            OS_Printf         (char         *p_str, ...);
 *                                       OS INITIALIZATION HOOK
 *                                            (BEGINNING)
 *
-* Description: This function is called by 
-() at the beginning of OSInit().
+* Description: This function is called by OSInit() at the beginning of OSInit().
 *
 * Arguments  : None.
 *

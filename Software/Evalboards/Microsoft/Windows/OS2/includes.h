@@ -37,6 +37,8 @@
 #include  <ctype.h>
 #include  <stdlib.h>
 
+#include <math.h>
+
 
                                                                 /* ----------------- MICRIUM LIBRARIES ---------------- */
 #include  <cpu.h>

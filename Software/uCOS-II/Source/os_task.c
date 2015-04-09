@@ -348,7 +348,7 @@ INT8U  OSTaskCreateExt (void   (*task)(void *p_arg),
 #if OS_CRITICAL_METHOD == 3u                 /* Allocate storage for CPU status register               */
     OS_CPU_SR   cpu_sr = 0u;
 #endif
-	Heap_Data hd;
+
 
 
 #ifdef OS_SAFETY_CRITICAL_IEC61508
@@ -379,12 +379,6 @@ INT8U  OSTaskCreateExt (void   (*task)(void *p_arg),
 
         psp = OSTaskStkInit(task, p_arg, ptos, opt);           /* Initialize the task's stack          */
         err = OS_TCBInit(prio, psp, pbos, id, stk_size, pext, opt);
-
-		/*--------------------------------------------------------------------------------------------*/
-		hd.deadline=((EDF_DATA*)pext)->ddl;
-		hd.prio=prio;
-		heapInsert(&hd,taskHeap);
-		/*--------------------------------------------------------------------------------------------*/
         if (err == OS_ERR_NONE) {
             if (OSRunning == OS_TRUE) {                        /* Find HPT if multitasking has started */
                 OS_Sched();
