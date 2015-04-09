@@ -92,6 +92,7 @@ static  void  OS_SchedNew(void);
 ---------------------------------------------------------------------------------------------------------
 */
 static void OS_SchedEDF(void);
+static void OS_SchedEDFHeap(void);
 static INT32U getEDFNextID(void);
 
 /*$PAGE*/
@@ -596,7 +597,7 @@ void  OSInit (void)
 #endif
 
     OSInitHookBegin();                                           /* Call port specific initialization code   */
-
+	
     OS_InitMisc();                                               /* Initialize miscellaneous variables       */
 
     OS_InitRdyList();                                            /* Initialize the Ready List                */
@@ -604,6 +605,9 @@ void  OSInit (void)
     OS_InitTCBList();                                            /* Initialize the free list of OS_TCBs      */
 
     OS_InitEventList();                                          /* Initialize the free list of OS_EVENTs    */
+	/*---------------------------------------------------------------------------------------------------*/
+	taskHeap=heapInitialize();
+	/*---------------------------------------------------------------------------------------------------*/
 
 #if (OS_FLAG_EN > 0u) && (OS_MAX_FLAGS > 0u)
     OS_FlagInit();                                               /* Initialize the event flag structures     */
@@ -712,7 +716,8 @@ void  OSIntExit (void)
             if (OSLockNesting == 0u) {                     /* ... and not locked.                      */
                 //OS_SchedNew();
 				/*----------------------------------------*/
-				OS_SchedEDF();
+				//OS_SchedEDF();
+				OS_SchedEDFHeap();
 				/*----------------------------------------*/
 
                 OSTCBHighRdy = OSTCBPrioTbl[OSPrioHighRdy];
@@ -954,7 +959,7 @@ void  OSTimeTick (void)
     OS_CPU_SR  cpu_sr = 0u;
 #endif
 	
-	
+	Heap_Data hd;
 
 #if OS_TIME_TICK_HOOK_EN > 0u
     OSTimeTickHook();                                      /* Call user definable hook                     */
@@ -995,6 +1000,11 @@ void  OSTimeTick (void)
         while (ptcb->OSTCBPrio != OS_TASK_IDLE_PRIO) {     /* Go through all TCBs in TCB list              */
             OS_ENTER_CRITICAL();
             if (ptcb->OSTCBDly != 0u) {                    /* No, Delayed or waiting for event with TO     */
+				if(ptcb->OSTCBDly<=1&& ptcb->OSTCBPrio!=OSTCBCur->OSTCBPrio){
+					hd.deadline=((EDF_DATA*)ptcb->OSTCBExtPtr)->ddl;
+					hd.prio=ptcb->OSTCBPrio;
+					heapInsert(&hd,taskHeap);
+				}
                 ptcb->OSTCBDly--;                          /* Decrement nbr of ticks to end of delay       */
                 if (ptcb->OSTCBDly == 0u) {                /* Check for timeout                            */
 
@@ -1024,6 +1034,7 @@ void  OSTimeTick (void)
 			OSTCBCur->OSTCBDly=
 				((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value-(((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->end-((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->start);
 			((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->start=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->start+((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->p_value;
+
 			
 			APP_TRACE("\n%d\tComplete\t%d\t%d",OSTimeGet(),OSTCBCur->OSTCBId,getEDFNextID());
 			//APP_TRACE("\tdelay:%d",OSTCBCur->OSTCBDly);
@@ -1032,7 +1043,11 @@ void  OSTimeTick (void)
 				APP_TRACE("\n%d\tPreempt\t\t%d\t%d",OSTimeGet(),OSTCBCur->OSTCBId,getEDFNextID());
 			}
 		}
-		
+		if(OSTCBCur->OSTCBDly==0){
+			hd.deadline=((EDF_DATA*)OSTCBCur->OSTCBExtPtr)->ddl;
+			hd.prio=OSTCBCur->OSTCBPrio;
+			heapInsert(&hd,taskHeap);
+		}
 		/*------------------------------------------------------------------------------------------------*/
     }
 }
@@ -1727,7 +1742,8 @@ void  OS_Sched (void)
         if (OSLockNesting == 0u) {                     /* ... scheduler is not locked                  */
             //OS_SchedNew();
 			/**/
-			OS_SchedEDF();
+			//OS_SchedEDF();
+			OS_SchedEDFHeap();
 			/**/
             OSTCBHighRdy = OSTCBPrioTbl[OSPrioHighRdy];
             if (OSPrioHighRdy != OSPrioCur) {          /* No Ctx Sw if current task is highest rdy     */
@@ -1809,8 +1825,9 @@ static void OS_SchedEDF(void){
 	int isAllDelay=1;
 
 	p_current=OSTCBList;
-	edf_ptcb=OSTCBList;
-	
+	//edf_ptcb=OSTCBList;
+	edf_ptcb=OSTCBPrioTbl[OS_TASK_IDLE_PRIO];
+	OSPrioHighRdy=OS_TASK_IDLE_PRIO;
 	//APP_TRACE("\n In os_schedEDF, current id:%d,delay:%d",OSTCBCur->OSTCBId,OSTCBCur->OSTCBDly);
 
 	while(p_current->OSTCBPrio!=OS_TASK_IDLE_PRIO){
@@ -1828,12 +1845,22 @@ static void OS_SchedEDF(void){
 	}
 	OSPrioHighRdy=edf_ptcb->OSTCBPrio;
 	if(isAllDelay==1){
-		OSPrioHighRdy=OS_TASK_IDLE_PRIO;
+		//OSPrioHighRdy=OS_TASK_IDLE_PRIO;
 	}
 	//if(OSPrioCur!=OSPrioHighRdy&&OSTCBCur->OSTCBDly==0){
 	//	APP_TRACE("\n%d\tPreempt\t%d\t%d",OSTimeGet(),OSTCBCur->OSTCBId,edf_ptcb->OSTCBId);
 	//}
 	//APP_TRACE("\nschedule result:%d",edf_ptcb->OSTCBId);
+}
+
+static void OS_SchedEDFHeap(void){
+	Heap_Data *hd;
+	if(isEmpty(taskHeap)){
+		OSPrioHighRdy=OS_TASK_IDLE_PRIO;
+	}else{
+		hd=heapDeleteMin(taskHeap);
+		OSPrioHighRdy=hd->prio;
+	}
 }
 
 static INT32U getEDFNextID(void){

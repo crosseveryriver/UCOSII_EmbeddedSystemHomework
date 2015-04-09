@@ -562,8 +562,27 @@ typedef struct edf_data{
 	INT32U end;
 }EDF_DATA;
 
+typedef struct heap_data{
+	INT32U prio;
+	INT32U deadline;
+}Heap_Data;
 
+typedef struct myheap{
+	INT32U capacity;
+	INT32U size;
+	Heap_Data *elements;
+}MinHeap;
 
+MinHeap* heapInitialize();
+void clearHeap(MinHeap* heap);
+void heapInsert(Heap_Data* data,MinHeap* heap);
+Heap_Data* heapDeleteMin(MinHeap* heap);
+void printHeap(MinHeap* heap);
+INT8U isFull(MinHeap* heap);
+INT8U isEmpty(MinHeap* heap);
+
+Heap_Data sentinel;
+MinHeap* taskHeap;
 
 /*$PAGE*/
 /*

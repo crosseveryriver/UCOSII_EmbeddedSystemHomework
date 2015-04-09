@@ -105,6 +105,9 @@
     <ClCompile Include="..\app_hooks.c">
       <Filter>App</Filter>
     </ClCompile>
+    <ClCompile Include="minheap.c">
+      <Filter>uCOS-II\Source</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\app_cfg.h">
