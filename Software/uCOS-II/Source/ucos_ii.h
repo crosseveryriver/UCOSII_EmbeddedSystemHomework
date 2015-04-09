@@ -548,6 +548,23 @@ typedef struct os_stk_data {
 } OS_STK_DATA;
 #endif
 
+
+/*------------------------------------------------------------------------------------------------------
+						appendix data to os_tcb to implement edf scheduling
+--------------------------------------------------------------------------------------------------------
+*/
+typedef struct edf_data{
+	INT32U c_value;		// the task needs to consume c_value ticks in p_value ticks as a period
+	INT32U p_value;
+	INT32U comp_time;	// the task remain to comsume in a period
+	INT32U ddl;			// the deadline of a task
+	INT32U start;
+	INT32U end;
+}EDF_DATA;
+
+
+
+
 /*$PAGE*/
 /*
 *********************************************************************************************************
